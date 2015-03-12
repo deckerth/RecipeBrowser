@@ -117,4 +117,10 @@ Public NotInheritable Class CategoryOverview
         NavigationHelper_LoadState(Nothing, Nothing)
 
     End Sub
+
+    Private Sub NewCategory_Click(sender As Object, e As RoutedEventArgs) Handles NewCategory.Click
+
+        Me.Frame.Navigate(GetType(DefineCategoryPage))
+
+    End Sub
 End Class

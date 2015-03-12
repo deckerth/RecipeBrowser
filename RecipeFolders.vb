@@ -223,4 +223,39 @@ Public Class RecipeFolders
 
     End Function
 
+    Public Async Function CreateCategoryAsync(ByVal newCategoryName As String, ByVal categoryImageFile As Windows.Storage.StorageFile) As Task
+
+        Dim errorFlag As Boolean
+
+        Try
+            Await rootFolder.CreateFolderAsync(newCategoryName)
+
+            If categoryImageFile IsNot Nothing Then
+                'Dim parentFolder = Await categoryImageFile.GetParentAsync()
+
+                'If parentFolder.Path <> rootFolder.Path + "\_folders" Or categoryImageFile.Name <> newCategoryName Then
+                Dim images As Windows.Storage.StorageFolder
+                Try
+                    images = Await rootFolder.GetFolderAsync("_folders")
+                Catch ex As Exception
+                End Try
+                If images Is Nothing Then
+                    images = Await rootFolder.CreateFolderAsync("_folders")
+                End If
+
+                Await categoryImageFile.CopyAsync(images, newCategoryName + ".png")
+            End If
+
+            Await LoadAsync()
+        Catch ex As Exception
+            errorFlag = True
+        End Try
+
+        If errorFlag Then
+            Dim messageDialog = New Windows.UI.Popups.MessageDialog("Die Kategorie konnte nicht angelegt werden.")
+            Await messageDialog.ShowAsync()
+        End If
+
+    End Function
+
 End Class
