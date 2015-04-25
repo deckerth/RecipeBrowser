@@ -1,4 +1,6 @@
-﻿' Die Vorlage "Leere Anwendung" ist unter http://go.microsoft.com/fwlink/?LinkId=234227 dokumentiert.
+﻿Imports Windows.UI.ApplicationSettings
+
+' Die Vorlage "Leere Anwendung" ist unter http://go.microsoft.com/fwlink/?LinkId=234227 dokumentiert.
 
 ''' <summary>
 ''' Stellt das anwendungsspezifische Verhalten bereit, um die Standardanwendungsklasse zu ergänzen.
@@ -7,6 +9,7 @@ NotInheritable Class App
     Inherits Application
 
     Public Shared Texts = New Windows.ApplicationModel.Resources.ResourceLoader()
+    Public Shared Logger = New Logging()
 
     ''' <summary>
     ''' Wird aufgerufen, wenn die Anwendung durch den Endbenutzer normal gestartet wird.  Weitere Einstiegspunkte
@@ -56,7 +59,7 @@ NotInheritable Class App
             ' Wenn der Navigationsstapel nicht wiederhergestellt wird, zur ersten Seite navigieren
             ' und die neue Seite konfigurieren, indem die erforderlichen Informationen als Navigationsparameter
             ' übergeben werden
-            If categories IsNot Nothing And categories.ContentLoaded Then
+            If categories IsNot Nothing AndAlso categories.ContentLoaded Then
                 rootFrame.Navigate(GetType(CategoryOverview), e.Arguments)
             Else
                 rootFrame.Navigate(GetType(StartPage), e.Arguments)
@@ -88,6 +91,21 @@ NotInheritable Class App
         ' TODO: Anwendungszustand speichern und alle Hintergrundaktivitäten beenden
         Await Common.SuspensionManager.SaveAsync()
         deferral.Complete()
+    End Sub
+
+    Protected Overrides Sub OnWindowCreated(args As WindowCreatedEventArgs)
+
+        AddHandler Windows.UI.ApplicationSettings.SettingsPane.GetForCurrentView().CommandsRequested, AddressOf OnCommandsRequested
+
+    End Sub
+
+    Private Sub OnCommandsRequested(sender As SettingsPane, args As SettingsPaneCommandsRequestedEventArgs)
+        args.Request.ApplicationCommands.Add(New SettingsCommand("Settings", App.Texts.GetString("FurtherOptions"), AddressOf ShowCustomSettingsFlyout))
+    End Sub
+
+    Private Sub ShowCustomSettingsFlyout()
+        Dim customSetting As SettingsContract = New SettingsContract
+        customSetting.Show()
     End Sub
 
 End Class

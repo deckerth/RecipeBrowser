@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/2010/manifest" xmlns:m2="http://schemas.microsoft.com/appx/2013/manifest">
-  <Identity Name="16412ThomasDecker.Rezepte" Publisher="CN=1330FAFF-275D-4496-A785-CC38B2A4FE2F" Version="1.1.0.11" />
+  <Identity Name="16412ThomasDecker.Rezepte" Publisher="CN=1330FAFF-275D-4496-A785-CC38B2A4FE2F" Version="1.1.0.16" />
   <Properties>
     <DisplayName>Rezepte</DisplayName>
     <PublisherDisplayName>Thomas Decker</PublisherDisplayName>

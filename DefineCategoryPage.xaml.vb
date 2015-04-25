@@ -37,6 +37,9 @@ Public NotInheritable Class DefineCategoryPage
         AddHandler Me._navigationHelper.SaveState, AddressOf NavigationHelper_SaveState
     End Sub
 
+    Private originalCategory As RecipeFolder
+    Private creationMode As Boolean
+
     ''' <summary>
     ''' Füllt die Seite mit Inhalt auf, der bei der Navigation übergeben wird.  Gespeicherte Zustände werden ebenfalls
     ''' bereitgestellt, wenn eine Seite aus einer vorherigen Sitzung neu erstellt wird.
@@ -48,7 +51,22 @@ Public NotInheritable Class DefineCategoryPage
     ''' <see cref="Frame.Navigate"/> übergeben wurde, als diese Seite ursprünglich angefordert wurde und
     ''' ein Wörterbuch des Zustands, der von dieser Seite während einer früheren
     ''' beibehalten wurde.  Der Zustand ist beim ersten Aufrufen einer Seite NULL.</param>
-    Private Sub NavigationHelper_LoadState(sender As Object, e As Common.LoadStateEventArgs)
+    Private Async Sub NavigationHelper_LoadState(sender As Object, e As Common.LoadStateEventArgs)
+
+        If e.NavigationParameter Is Nothing Then
+            originalCategory = Nothing
+        Else
+            Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+            originalCategory = categories.GetFolder(DirectCast(e.NavigationParameter, String))
+        End If
+
+        creationMode = (originalCategory Is Nothing)
+
+        If Not creationMode Then
+            CategoryName.Text = originalCategory.Name
+            Await LoadImageAsync(originalCategory.ImageFile)
+            pageTitle.Text = App.Texts.GetString("EditCategoryTitle")
+        End If
 
     End Sub
 
@@ -90,6 +108,26 @@ Public NotInheritable Class DefineCategoryPage
 
     Private SelectedImage As Windows.Storage.StorageFile
 
+    Private Async Function LoadImageAsync(ByVal imageFile As Windows.Storage.StorageFile) As Task
+
+        If imageFile IsNot Nothing Then
+            Try
+                ' Open a stream for the selected file.
+                Dim fileStream = Await imageFile.OpenAsync(Windows.Storage.FileAccessMode.Read)
+
+                ' Set the image source to the selected bitmap.
+                Dim BitmapImage = New Windows.UI.Xaml.Media.Imaging.BitmapImage()
+
+                BitmapImage.SetSource(fileStream)
+                CategoryImage.Source = BitmapImage
+            Catch ex As Exception
+            End Try
+        End If
+
+        SelectedImage = imageFile
+
+    End Function
+
     Private Async Sub LoadCategoryImage_Click(sender As Object, e As RoutedEventArgs)
 
         Dim openPicker = New Windows.Storage.Pickers.FileOpenPicker()
@@ -105,39 +143,41 @@ Public NotInheritable Class DefineCategoryPage
 
         ' file is null if user cancels the file picker.
         If file IsNot Nothing Then
+            Await LoadImageAsync(file)
 
-            ' Open a stream for the selected file.
-            Dim fileStream = Await file.OpenAsync(Windows.Storage.FileAccessMode.Read)
-
-            ' Set the image source to the selected bitmap.
-            Dim BitmapImage = New Windows.UI.Xaml.Media.Imaging.BitmapImage()
-
-            BitmapImage.SetSource(fileStream)
-            SelectedImage = file
-            CategoryImage.Source = BitmapImage
+            If SaveCategory.IsEnabled = False AndAlso CategoryNameIsValid() Then
+                SaveCategory.IsEnabled = True
+            End If
         End If
-
     End Sub
 
     Class StringContainer
         Public content As New String("")
     End Class
 
-    Private Function CategoryNameIsValid(ByRef errorMessage As StringContainer) As Boolean
+    Private Function CategoryNameIsValid(Optional ByRef errorMessage As StringContainer = Nothing) As Boolean
 
-        If CategoryName.Text Is Nothing Or CategoryName.Text = "" Then
-            errorMessage.content = "Der Kategoriename darf nicht leer sein"
+        If CategoryName.Text Is Nothing OrElse CategoryName.Text.Trim().Equals("") Then
+            If errorMessage IsNot Nothing Then
+                errorMessage.content = App.Texts.GetString("CategoryNameIsEmpty")
+            End If
             Return False
         End If
 
-        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+        If creationMode OrElse Not CategoryName.Text.Trim().Equals(originalCategory.Name) Then
+            Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
 
-        If categories.GetFolder(CategoryName.Text) IsNot Nothing Then
-            errorMessage.content = "Die angegebene Kategorie existiert bereits"
-            Return False
+            If categories.GetFolder(CategoryName.Text.Trim()) IsNot Nothing Then
+                If errorMessage IsNot Nothing Then
+                    errorMessage.content = App.Texts.GetString("CategoryDoesAlreadyExist")
+                End If
+                Return False
+            End If
         End If
 
-        errorMessage.content = ""
+        If errorMessage IsNot Nothing Then
+            errorMessage.content = ""
+        End If
         Return True
 
     End Function
@@ -148,7 +188,11 @@ Public NotInheritable Class DefineCategoryPage
 
         If CategoryNameIsValid(errorMessage) Then
             Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
-            Await categories.CreateCategoryAsync(CategoryName.Text, SelectedImage)
+            If creationMode Then
+                Await categories.CreateCategoryAsync(CategoryName.Text.Trim(), SelectedImage)
+            Else
+                Await categories.ModifyCategoryAsync(originalCategory, CategoryName.Text.Trim(), SelectedImage)
+            End If
             NavigationHelper.GoBack()
         Else
             Dim messageDialog = New Windows.UI.Popups.MessageDialog(errorMessage.content)
@@ -182,7 +226,7 @@ Public NotInheritable Class DefineCategoryPage
 
     Private Async Sub GoBack_Click(sender As Object, e As RoutedEventArgs) Handles backButton.Click
 
-        If saveNecessary And CategoryName.Text <> "" Then
+        If saveNecessary AndAlso CategoryName.Text <> "" Then
             Dim messageDialog = New Windows.UI.Popups.MessageDialog("Wollen Sie die Änderungen speichern?")
             ' Add buttons and set their callbacks
             messageDialog.Commands.Add(New UICommand(App.Texts.GetString("Yes"), Sub(command)

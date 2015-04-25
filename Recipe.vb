@@ -1,12 +1,43 @@
-﻿Public Class Recipe
+﻿Imports Windows.Storage
+Imports Windows.Storage.Provider
+Imports Windows.Globalization.DateTimeFormatting
+
+Public Class Recipe
+    Implements INotifyPropertyChanged
+
+
+    Public Event PropertyChanged(ByVal sender As Object, ByVal e As PropertyChangedEventArgs) Implements INotifyPropertyChanged.PropertyChanged
+
+    Protected Overridable Sub OnPropertyChanged(ByVal PropertyName As String)
+        ' Raise the event, and make this procedure
+        ' overridable, should someone want to inherit from
+        ' this class and override this behavior:
+        RaiseEvent PropertyChanged(Me, New PropertyChangedEventArgs(PropertyName))
+    End Sub
 
     Public Property Categegory As String
     Public Property Name As String
-    Public Property CreationDate As String
+
+    Private _SubTitle As String
+
+    Public Property SubTitle As String
+        Get
+            Return _SubTitle
+        End Get
+        Set(value As String)
+            If value <> _SubTitle Then
+                _SubTitle = value
+                OnPropertyChanged("SubTitle")
+            End If
+        End Set
+    End Property
+
     Public Property CreationDateTime As DateTime
     Public Property NoOfPages As Integer
     Public Property CurrentPage As Integer
     Public Property RenderedPageNumber As Integer
+    Public Property LastCooked As String
+    Public Property CookedNoOfTimes As Integer
 
     Public Property File As Windows.Storage.StorageFile
     Public ReadOnly Property RenderedPage As BitmapImage
@@ -15,11 +46,97 @@
         End Get
     End Property
 
+    Public Property Notes As Windows.Storage.StorageFile
+
     Private _RenderedPage As BitmapImage
     Private _RenderedPages As New List(Of BitmapImage)
     Private _Document As Windows.Data.Pdf.PdfDocument
 
     Private _PageRendererRunning As Boolean
+
+    Public Sub RenderSubTitle()
+
+        'Dim stats = Statistics.data.GetStatistics(Categegory, Name)
+        'SubTitle = Categegory + ", " + DateTimeFormatter.ShortDate.Format(CreationDateTime)
+        'If stats IsNot Nothing Then
+        '    SubTitle = SubTitle + ", " + App.Texts.GetString("CookedOn") + " " + stats.LastCooked
+        '    SubTitle = SubTitle + " (" + App.Texts.GetString("UpToNow") + " " + stats.CookedNoOfTimes.ToString + " " + App.Texts.GetString("Times") + ")"
+        'End If
+
+        SubTitle = Categegory + ", " + DateTimeFormatter.ShortDate.Format(CreationDateTime)
+        If CookedNoOfTimes > 0 Then
+            SubTitle = SubTitle + ", " + App.Texts.GetString("CookedOn") + " " + LastCooked
+            SubTitle = SubTitle + " (" + App.Texts.GetString("UpToNow") + " " + CookedNoOfTimes.ToString + " " + App.Texts.GetString("Times") + ")"
+        End If
+
+    End Sub
+
+    Private Async Function WriteNotesToFileAsync(ByVal noteText As Windows.UI.Text.ITextDocument, ByVal file As Windows.Storage.StorageFile) As Task
+        Try
+
+            ' Prevent updates to the remote version of the file until we 
+            ' finish making changes and call CompleteUpdatesAsync.
+            CachedFileManager.DeferUpdates(file)
+            ' write to file
+            Dim randAccStream As Windows.Storage.Streams.IRandomAccessStream = Await file.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite)
+
+            noteText.SaveToStream(Windows.UI.Text.TextGetOptions.FormatRtf, randAccStream)
+
+            randAccStream.Dispose()
+
+            ' Let Windows know that we're finished changing the file so the 
+            ' other app can update the remote version of the file.
+            Dim status As FileUpdateStatus = Await CachedFileManager.CompleteUpdatesAsync(file)
+            If (status <> FileUpdateStatus.Complete) Then
+                Dim errorBox As Windows.UI.Popups.MessageDialog = New Windows.UI.Popups.MessageDialog(App.Texts.GetString("UnableToSaveNotes"))
+                Await errorBox.ShowAsync()
+            End If
+        Catch ex As Exception
+        End Try
+
+    End Function
+
+    Public Async Function UpdateNoteTextAsync(noteText As Windows.UI.Text.ITextDocument) As Task
+
+        Dim allFolders = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+
+        If Notes Is Nothing Then
+            Dim recipeFolder = allFolders.GetFolder(Categegory)
+            Try
+                Notes = Await recipeFolder.Folder.CreateFileAsync(Name + ".rtf")
+            Catch ex As Exception
+            End Try
+        End If
+
+        If Notes IsNot Nothing Then
+            Await WriteNotesToFileAsync(noteText, Notes)
+            allFolders.UpdateNote(Me)
+        End If
+
+    End Function
+
+    Public Async Function LogRecipeCookedAsync(CookedOn As DateTimeOffset) As Task
+
+        Dim allFolders = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+
+        LastCooked = DateTimeFormatter.ShortDate.Format(CookedOn)
+        CookedNoOfTimes = CookedNoOfTimes + 1
+
+        Await allFolders.UpdateStatisticsAsync(Me)
+    End Function
+
+    Function CookedToday() As Boolean
+
+        Return CookedOn(Date.Now)
+
+    End Function
+
+    Function CookedOn(OnDate As DateTimeOffset) As Boolean
+
+        Return LastCooked IsNot Nothing AndAlso LastCooked.Equals(DateTimeFormatter.ShortDate.Format(OnDate))
+
+    End Function
+
 
     Public Async Function RenderPageAsync() As Task
 

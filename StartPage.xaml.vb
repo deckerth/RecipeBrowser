@@ -92,7 +92,7 @@ Public NotInheritable Class StartPage
 
         Await categories.ChangeRootFolder()
 
-        If categories IsNot Nothing And categories.ContentLoaded Then
+        If categories IsNot Nothing AndAlso categories.ContentLoaded Then
             Me.Frame.Navigate(GetType(CategoryOverview))
         End If
 

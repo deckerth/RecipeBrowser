@@ -5,6 +5,7 @@ Public Class RecipeFolder
     Public Property Name As String
     Public Property Folder As Windows.Storage.StorageFolder
     Public Property Image As BitmapImage
+    Public Property ImageFile As Windows.Storage.StorageFile
 
     Public Enum SortOrder
         ByNameAscending
@@ -34,23 +35,51 @@ Public Class RecipeFolder
         Return _ContentLoaded
     End Function
 
-    Async Function LoadRecipeAsync(file As Windows.Storage.StorageFile) As Task(Of Recipe)
+    Async Function LoadRecipeAsync(file As Windows.Storage.StorageFile, loadMetadata As Boolean, checkForNotes As Boolean) As Task(Of Recipe)
 
         Dim _recipe = New Recipe
+        Dim metaDataFile As Windows.Storage.StorageFile
 
         _recipe.Name = file.Name.Remove(file.Name.Length - 4)  ' delete suffix .pdf
 
         If Name = SearchResults.FolderName Then
-            Dim parent = Await file.GetParentAsync()
-            _recipe.Categegory = parent.Name
+            Try
+                Dim parent = Await file.GetParentAsync()
+                _recipe.Categegory = parent.Name
+                If checkForNotes Then
+                    _recipe.Notes = Await parent.GetFileAsync(_recipe.Name + ".rtf")
+                End If
+                If loadMetadata Then
+                    metaDataFile = Await parent.GetFileAsync(_recipe.Name + ".xml")
+                End If
+            Catch ex As Exception
+                App.Logger.Write("Unable to access parent of: " + file.Path + ": ", ex.ToString)
+            End Try
         Else
             _recipe.Categegory = Name
+            Try
+                If checkForNotes Then
+                    _recipe.Notes = Await Folder.GetFileAsync(_recipe.Name + ".rtf")
+                End If
+            Catch ex As Exception
+            End Try
+            Try
+                If loadMetadata Then
+                    metaDataFile = Await Folder.GetFileAsync(_recipe.Name + ".xml")
+                End If
+            Catch ex As Exception
+            End Try
         End If
 
         Dim properties = Await file.GetBasicPropertiesAsync()
-        _recipe.CreationDate = _recipe.Categegory + ", " + DateTimeFormatter.ShortDate.Format(properties.ItemDate.DateTime)
         _recipe.CreationDateTime = properties.ItemDate.DateTime
         _recipe.File = file
+
+        If metaDataFile IsNot Nothing Then
+            Await RecipeMetadata.Instance.ReadMetadataAsync(_recipe, metaDataFile)
+        End If
+
+        _recipe.RenderSubTitle()
 
         Return _recipe
 
@@ -58,12 +87,62 @@ Public Class RecipeFolder
 
     Protected Async Function SetUpFolderFromFileListAsync(fileList As IReadOnlyList(Of Windows.Storage.StorageFile)) As Task
 
+        ' This method is used by the original folders and the search folder.
         _Recipes.Clear()
         _RecipeList.Clear()
 
+        If fileList Is Nothing Then
+            Return
+        End If
+
+        Dim rtfFiles As New List(Of Windows.Storage.StorageFile)
+        Dim xmlFiles As New List(Of Windows.Storage.StorageFile)
+
         For Each file In fileList
-            Dim _recipe = Await LoadRecipeAsync(file)
-            _RecipeList.Add(_recipe)
+            If file.Name.ToUpper.EndsWith(".PDF") Then
+                Try
+                    Dim _recipe = Await LoadRecipeAsync(file, loadMetadata:=Name = SearchResults.FolderName, checkForNotes:=Name = SearchResults.FolderName)
+                    _RecipeList.Add(_recipe)
+                Catch ex As Exception
+                    App.Logger.Write("Recipe cannot be loaded: " + file.Path + ex.ToString)
+                End Try
+            ElseIf file.Name.ToUpper.EndsWith(".RTF") Then
+                rtfFiles.Add(file) ' Search folder: Add the recipe to the search result; Normal folder: Log the file in the recipe data
+            ElseIf file.Name.ToUpper.EndsWith(".XML") Then
+                If Name <> SearchResults.FolderName Then
+                    xmlFiles.Add(file) ' use the file instance later in order to load the metadata
+                End If
+            Else
+                App.Logger.Write("Unsupported File: " + file.Path + file.ContentType)
+            End If
+        Next
+
+        ' If the search expression has been found in another file, try to add the corresponding recipe to the search result list
+        For Each file In rtfFiles
+            Dim recipe = file.Name.Remove(file.Name.Length - 4)  ' delete suffix e.g. ".rtf"
+            If Name = SearchResults.FolderName Then
+                If GetRecipe(Name, recipe) Is Nothing Then
+                    Try ' Add the recipe to the search result
+                        Dim parent = Await file.GetParentAsync()
+                        Dim recipeFile = Await parent.GetFileAsync(recipe + ".pdf")
+                        Dim _recipe = Await LoadRecipeAsync(recipeFile, loadMetadata:=True, checkForNotes:=False)
+                        _recipe.Notes = file
+                        _RecipeList.Add(_recipe)
+                    Catch ex As Exception
+                        App.Logger.Write("Unable to add recipe to search result: " + recipe + ": " + ex.ToString)
+                    End Try
+                End If
+            Else
+                SetNote(Name, recipe, file)
+            End If
+        Next
+
+        For Each file In xmlFiles
+            Dim recipeName = file.Name.Remove(file.Name.Length - 4)  ' delete suffix .xml
+            Dim _recipe = GetRecipe(Name, recipeName)
+            If _recipe IsNot Nothing Then
+                Await RecipeMetadata.Instance.ReadMetadataAsync(_recipe, file)
+            End If
         Next
 
         ApplySortOrder()
@@ -80,13 +159,19 @@ Public Class RecipeFolder
 
         Dim files = Await Folder.GetFilesAsync()
 
+        If files Is Nothing Then
+            App.Logger.Write("Folder content cannot be read: " + Folder.DisplayName)
+        ElseIf files.Count = 0 Then
+            App.Logger.Write("Folder is empty: " + Folder.DisplayName)
+        End If
+
         Await SetUpFolderFromFileListAsync(files)
 
     End Function
 
     Public Function GetRecipe(category As String, title As String) As Recipe
 
-        Dim matches = _Recipes.Where(Function(otherRecipe) otherRecipe.Name.Equals(title) And otherRecipe.Categegory.Equals(category))
+        Dim matches = _RecipeList.Where(Function(otherRecipe) otherRecipe.Name.Equals(title) And otherRecipe.Categegory.Equals(category))
         If matches.Count() = 1 Then
             Return matches.First()
         End If
@@ -106,7 +191,7 @@ Public Class RecipeFolder
                 Return Nothing
             End Try
             If file IsNot Nothing Then
-                Return Await LoadRecipeAsync(file)
+                Return Await LoadRecipeAsync(file, loadMetadata:=True, checkForNotes:=True)
             End If
         End If
 
@@ -149,5 +234,44 @@ Public Class RecipeFolder
         Return False
 
     End Function
+
+    Sub Invalidate()
+
+        _RecipeList.Clear()
+        _Recipes.Clear()
+        _ContentLoaded = False
+
+    End Sub
+
+    Public Sub UpdateStatistics(changedRecipe As Recipe)
+
+        Dim recipe = GetRecipe(changedRecipe.Categegory, changedRecipe.Name)
+
+        If recipe IsNot Nothing Then
+            recipe.LastCooked = changedRecipe.LastCooked
+            recipe.CookedNoOfTimes = changedRecipe.CookedNoOfTimes
+            recipe.RenderSubTitle()
+        End If
+
+    End Sub
+
+    Public Sub SetNote(category As String, title As String, note As Windows.Storage.StorageFile)
+
+        Dim recipe = GetRecipe(category, title)
+
+        If recipe IsNot Nothing Then
+            recipe.Notes = note
+        End If
+
+    End Sub
+
+    Public Sub UpdateNote(changedRecipe As Recipe)
+
+        Dim recipe = GetRecipe(changedRecipe.Categegory, changedRecipe.Name)
+
+        If recipe IsNot Nothing AndAlso Not Object.ReferenceEquals(recipe, changedRecipe) Then
+            recipe.Notes = changedRecipe.Notes
+        End If
+    End Sub
 
 End Class

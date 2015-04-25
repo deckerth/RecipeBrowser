@@ -58,6 +58,7 @@ Public NotInheritable Class CategoryOverview
         RecipeSearchBox.SetLocalContentSuggestionSettings(searchSuggestions)
         ChangeRootFolderButton.Label = App.Texts.GetString("ChangeRootFolder")
         backButton.Visibility = Windows.UI.Xaml.Visibility.Collapsed
+        itemGridView.SelectedItem = Nothing
 
     End Sub
 
@@ -123,4 +124,18 @@ Public NotInheritable Class CategoryOverview
         Me.Frame.Navigate(GetType(DefineCategoryPage))
 
     End Sub
+
+    Private Async Sub Edit_Category_Click(sender As Object, e As RoutedEventArgs) Handles EditCategory.Click
+
+        If itemGridView.SelectedItem Is Nothing Then
+            Dim msg = New Windows.UI.Popups.MessageDialog(App.Texts.GetString("SelectACategory"))
+            Await msg.ShowAsync()
+            Return
+        End If
+
+        Dim selectedCategory = DirectCast(itemGridView.SelectedItem, RecipeFolder)
+        Me.Frame.Navigate(GetType(DefineCategoryPage), selectedCategory.Name)
+
+    End Sub
+
 End Class

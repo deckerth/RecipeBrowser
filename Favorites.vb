@@ -4,7 +4,7 @@
     Public Shared FolderName As String = App.Texts.GetString("FavoritesFolder")
 
     Public Sub New()
-        Name = FolderName
+        Me.Name = FolderName
     End Sub
 
     Public Async Function AddRecipeAsync(ByVal newRecipe As Recipe) As Task
@@ -75,6 +75,30 @@
 
         _ContentLoaded = True
     End Function
+
+    Public Sub RenameCategory(ByRef OldName As String, ByRef NewName As String)
+
+        Dim roamingSettings = Windows.Storage.ApplicationData.Current.RoamingSettings
+        Dim storedRecords = roamingSettings.CreateContainer("Favorites", Windows.Storage.ApplicationDataCreateDisposition.Always)
+        Dim toRename As New List(Of String)
+
+        For Each item In storedRecords.Values
+            If item.Value("Folder") = OldName Then
+                toRename.Add(item.Key)
+            End If
+        Next
+
+        For Each key In toRename
+            Dim recipeComposite = New Windows.Storage.ApplicationDataCompositeValue()
+            recipeComposite("Folder") = NewName
+            recipeComposite("Recipe") = storedRecords.Values(key)("Recipe")
+            storedRecords.Values.Remove(key)
+            storedRecords.Values(key) = recipeComposite
+        Next
+
+        Invalidate()
+
+    End Sub
 
 
 End Class

@@ -132,11 +132,26 @@
   <data name="CancelButton.Content" xml:space="preserve">
     <value>Abbrechen</value>
   </data>
+  <data name="CategoryDoesAlreadyExist" xml:space="preserve">
+    <value>Die angegebene Kategorie existiert bereits.</value>
+  </data>
   <data name="CategoryLabel.Text" xml:space="preserve">
     <value>Kategorie:</value>
   </data>
+  <data name="CategoryNameIsEmpty" xml:space="preserve">
+    <value>Der Kategoriename darf nicht leer sein.</value>
+  </data>
+  <data name="ChangeCategory.Label" xml:space="preserve">
+    <value>Kategorie ändern</value>
+  </data>
   <data name="ChangeRootFolder" xml:space="preserve">
     <value>Startordner ändern</value>
+  </data>
+  <data name="CookedOn" xml:space="preserve">
+    <value>zubereitet am</value>
+  </data>
+  <data name="CreateNote" xml:space="preserve">
+    <value>Neue Notiz</value>
   </data>
   <data name="DateDescending.Text" xml:space="preserve">
     <value>Datum, absteigend</value>
@@ -147,8 +162,17 @@
   <data name="DeleteRecipe.Label" xml:space="preserve">
     <value>Rezept löschen</value>
   </data>
+  <data name="DisplayNote" xml:space="preserve">
+    <value>Notiz anzeigen</value>
+  </data>
   <data name="DoYouWantToDelete" xml:space="preserve">
     <value>Soll das Rezept gelöscht werden?</value>
+  </data>
+  <data name="EditCategory.Label" xml:space="preserve">
+    <value>Kategorie bearbeiten</value>
+  </data>
+  <data name="EditCategoryTitle" xml:space="preserve">
+    <value>Kategorie bearbeiten</value>
   </data>
   <data name="FavoriteRecipes.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Vorgemerkte Rezepte</value>
@@ -156,8 +180,17 @@
   <data name="FavoritesFolder" xml:space="preserve">
     <value>Favoriten</value>
   </data>
+  <data name="FurtherOptions" xml:space="preserve">
+    <value>Weitere Einstellungen</value>
+  </data>
   <data name="GetCategoryImage.Content" xml:space="preserve">
     <value>Kategoriebild laden</value>
+  </data>
+  <data name="LogAsCooked.Label" xml:space="preserve">
+    <value>Zubereitet!</value>
+  </data>
+  <data name="LoggingSwitch.Header" xml:space="preserve">
+    <value>Anwendungsereignisse protokollieren</value>
   </data>
   <data name="NameAscending.Text" xml:space="preserve">
     <value>Name, aufsteigend</value>
@@ -168,11 +201,17 @@
   <data name="No" xml:space="preserve">
     <value>Nein</value>
   </data>
+  <data name="NoteEditor.Header" xml:space="preserve">
+    <value>Rezeptnotizen</value>
+  </data>
   <data name="OpenRecipe.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Rezept öffnen</value>
   </data>
   <data name="OpenRootFolder" xml:space="preserve">
     <value>Startordner auswählen</value>
+  </data>
+  <data name="RefreshRecipes.Label" xml:space="preserve">
+    <value>Anzeige aktualisieren</value>
   </data>
   <data name="RemoveRecipe.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Rezept aus der Liste entfernen</value>
@@ -183,11 +222,32 @@
   <data name="SearchResultFolder" xml:space="preserve">
     <value>Suchergebnisse</value>
   </data>
+  <data name="SelectACategory" xml:space="preserve">
+    <value>Bitte zunächst eine Kategorie durch Wischen auswählen.</value>
+  </data>
   <data name="SetRootFolder.Content" xml:space="preserve">
     <value>Startordner festlegen</value>
   </data>
+  <data name="SettingsFlyout.Title" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="Times" xml:space="preserve">
+    <value>Mal</value>
+  </data>
+  <data name="UnableToCreateCategory" xml:space="preserve">
+    <value>Die Kategorie konnte nicht angelegt werden.</value>
+  </data>
   <data name="UnableToDelete" xml:space="preserve">
-    <value>Das Rezept konnte nicht gelöscht werden</value>
+    <value>Das Rezept konnte nicht gelöscht werden.</value>
+  </data>
+  <data name="UnableToEditCategory" xml:space="preserve">
+    <value>Die Kategorie konnte nicht geändert werden.</value>
+  </data>
+  <data name="UnableToSaveNotes" xml:space="preserve">
+    <value>Die Änderungen konnten nicht gespeichert werden.</value>
+  </data>
+  <data name="UpToNow" xml:space="preserve">
+    <value>bislang</value>
   </data>
   <data name="Yes" xml:space="preserve">
     <value>Ja</value>

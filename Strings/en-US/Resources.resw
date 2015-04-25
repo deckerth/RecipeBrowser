@@ -132,11 +132,26 @@
   <data name="CancelButton.Content" xml:space="preserve">
     <value>Cancel</value>
   </data>
+  <data name="CategoryDoesAlreadyExist" xml:space="preserve">
+    <value>The category does already exist.</value>
+  </data>
   <data name="CategoryLabel.Text" xml:space="preserve">
     <value>Category:</value>
   </data>
+  <data name="CategoryNameIsEmpty" xml:space="preserve">
+    <value>Specify a category name.</value>
+  </data>
+  <data name="ChangeCategory.Label" xml:space="preserve">
+    <value>Change Category</value>
+  </data>
   <data name="ChangeRootFolder" xml:space="preserve">
     <value>Change Root Folder</value>
+  </data>
+  <data name="CookedOn" xml:space="preserve">
+    <value>prepared on</value>
+  </data>
+  <data name="CreateNote" xml:space="preserve">
+    <value>New Note</value>
   </data>
   <data name="DateDescending.Text" xml:space="preserve">
     <value>Date, descending</value>
@@ -147,8 +162,17 @@
   <data name="DeleteRecipe.Label" xml:space="preserve">
     <value>Delete Recipe</value>
   </data>
+  <data name="DisplayNote" xml:space="preserve">
+    <value>Display Note</value>
+  </data>
   <data name="DoYouWantToDelete" xml:space="preserve">
     <value>Do you want to delete the recipe?</value>
+  </data>
+  <data name="EditCategory.Label" xml:space="preserve">
+    <value>Edit category</value>
+  </data>
+  <data name="EditCategoryTitle" xml:space="preserve">
+    <value>Edit category</value>
   </data>
   <data name="FavoriteRecipes.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Favorites</value>
@@ -156,8 +180,17 @@
   <data name="FavoritesFolder" xml:space="preserve">
     <value>Favorites</value>
   </data>
+  <data name="FurtherOptions" xml:space="preserve">
+    <value>Further Options</value>
+  </data>
   <data name="GetCategoryImage.Content" xml:space="preserve">
     <value>Choose Category Image</value>
+  </data>
+  <data name="LogAsCooked.Label" xml:space="preserve">
+    <value>Prepared!</value>
+  </data>
+  <data name="LoggingSwitch.Header" xml:space="preserve">
+    <value>Log application events</value>
   </data>
   <data name="NameAscending.Text" xml:space="preserve">
     <value>Name, ascending</value>
@@ -168,11 +201,17 @@
   <data name="No" xml:space="preserve">
     <value>No</value>
   </data>
+  <data name="NoteEditor.Header" xml:space="preserve">
+    <value>Notes for this Recipe</value>
+  </data>
   <data name="OpenRecipe.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Open Recipe</value>
   </data>
   <data name="OpenRootFolder" xml:space="preserve">
     <value>Open Root Folder</value>
+  </data>
+  <data name="RefreshRecipes.Label" xml:space="preserve">
+    <value>Refresh Display</value>
   </data>
   <data name="RemoveRecipe.[using:Windows.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Remove Recipe from List</value>
@@ -183,11 +222,32 @@
   <data name="SearchResultFolder" xml:space="preserve">
     <value>Search Results</value>
   </data>
+  <data name="SelectACategory" xml:space="preserve">
+    <value>Select a category by swiping first.</value>
+  </data>
   <data name="SetRootFolder.Content" xml:space="preserve">
     <value>Set Root Folder</value>
   </data>
+  <data name="SettingsFlyout.Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Times" xml:space="preserve">
+    <value>times</value>
+  </data>
+  <data name="UnableToCreateCategory" xml:space="preserve">
+    <value>The category could not be created.</value>
+  </data>
   <data name="UnableToDelete" xml:space="preserve">
-    <value>The recipe could not be deleted</value>
+    <value>The recipe could not be deleted.</value>
+  </data>
+  <data name="UnableToEditCategory" xml:space="preserve">
+    <value>The category could not be changed.</value>
+  </data>
+  <data name="UnableToSaveNotes" xml:space="preserve">
+    <value>The changes could not be saved.</value>
+  </data>
+  <data name="UpToNow" xml:space="preserve">
+    <value>up to now</value>
   </data>
   <data name="Yes" xml:space="preserve">
     <value>Yes</value>

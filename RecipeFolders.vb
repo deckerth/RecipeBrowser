@@ -1,4 +1,6 @@
 ﻿Imports Windows.UI.Popups
+Imports Windows.Storage
+Imports Windows.Storage.Provider
 
 Public Class RecipeFolders
 
@@ -114,12 +116,13 @@ Public Class RecipeFolders
         Try
             images = Await rootFolder.GetFolderAsync("_folders")
         Catch ex As Exception
+            App.Logger.Write("Unable to open the image folder:" + ex.ToString)
         End Try
 
         Try
             folders = Await rootFolder.GetFoldersAsync()
         Catch ex As Exception
-            Return
+            App.Logger.Write("Unable to open the root folder:" + ex.ToString)
         End Try
 
         ' Remove all temporary files
@@ -127,11 +130,12 @@ Public Class RecipeFolders
             Dim tempFolder = Windows.Storage.ApplicationData.Current.LocalFolder
             Dim files = Await tempFolder.GetFilesAsync()
             For Each file In files
-                If file.Name.ToUpper.EndsWith(".PDF") Then
+                If file.Name.ToUpper.EndsWith(".PNG") Then
                     Await file.DeleteAsync()
                 End If
             Next
         Catch ex As Exception
+            App.Logger.Write("An exception occurred while removing temporary files:" + ex.ToString)
         End Try
 
         _Folders.Clear()
@@ -152,8 +156,10 @@ Public Class RecipeFolders
                             ' Set the image source to the selected bitmap.
                             category.Image = New Windows.UI.Xaml.Media.Imaging.BitmapImage()
                             Await category.Image.SetSourceAsync(fileStream)
+                            category.ImageFile = categoryImage
                         End If
-                    Catch
+                    Catch ex As Exception
+                        App.Logger.Write("Error occurred while loading image for " + folder.DisplayName + ": " + ex.ToString)
                     End Try
                 End If
 
@@ -166,6 +172,32 @@ Public Class RecipeFolders
 
         initialized = True
     End Function
+
+
+    Public Async Function UpdateStatisticsAsync(changedRecipe As Recipe) As Task
+
+        Dim folder = GetFolder(changedRecipe.Categegory)
+
+        Await RecipeMetadata.Instance.WriteMetadataAsync(folder.Folder, changedRecipe)
+
+        folder.UpdateStatistics(changedRecipe)
+
+        SearchResultsFolder.UpdateStatistics(changedRecipe)
+        FavoriteFolder.UpdateStatistics(changedRecipe)
+
+    End Function
+
+
+    Public Sub UpdateNote(changedRecipe As Recipe)
+
+        Dim folder = GetFolder(changedRecipe.Categegory)
+
+        folder.UpdateNote(changedRecipe)
+
+        SearchResultsFolder.UpdateNote(changedRecipe)
+        FavoriteFolder.UpdateNote(changedRecipe)
+
+    End Sub
 
     Async Function ChangeRootFolder() As Task
 
@@ -223,6 +255,89 @@ Public Class RecipeFolders
 
     End Function
 
+
+    Public Async Function ChangeCategoryAsync(ByVal recipeToChange As Recipe, ByVal destinationCategory As RecipeFolder) As Task
+
+        If recipeToChange.Categegory = destinationCategory.Name Then
+            Return
+        End If
+
+        Dim errorFlag As Boolean
+        Try
+            Await recipeToChange.File.MoveAsync(destinationCategory.Folder, recipeToChange.File.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName)
+
+            If destinationCategory.ContentLoaded Then
+                destinationCategory.Invalidate()
+            End If
+            Dim srcFolder = GetFolder(recipeToChange.Categegory)
+            If srcFolder.ContentLoaded Then
+                srcFolder.DeleteRecipe(recipeToChange)
+            End If
+            recipeToChange.Categegory = destinationCategory.Name
+        Catch ex As Exception
+            errorFlag = True
+        End Try
+
+        If errorFlag Then
+            Dim messageDialog = New Windows.UI.Popups.MessageDialog(App.Texts.GetString("UnableToEditCategory"))
+            Await messageDialog.ShowAsync()
+        End If
+
+    End Function
+
+
+    Public Async Function ModifyCategoryAsync(ByVal originalCategory As RecipeFolder, ByVal newCategoryName As String, ByVal categoryImageFile As Windows.Storage.StorageFile) As Task
+
+        Dim errorFlag As Boolean
+        Dim reload As Boolean
+
+        Try
+            If Not originalCategory.Name.Equals(newCategoryName) Then
+                Await originalCategory.Folder.RenameAsync(newCategoryName)
+                FavoriteFolder.RenameCategory(originalCategory.Name, newCategoryName)
+                reload = True
+            End If
+
+            If categoryImageFile IsNot Nothing Then
+                If originalCategory.ImageFile IsNot Nothing AndAlso originalCategory.ImageFile.Path.Equals(categoryImageFile.Path) Then
+                    Await categoryImageFile.RenameAsync(newCategoryName + ".png")
+                Else
+                    Await CopyCategoryImage(newCategoryName, categoryImageFile)
+                End If
+                reload = True
+            End If
+
+            If reload Then
+                Await LoadAsync()
+            End If
+        Catch ex As Exception
+            errorFlag = True
+        End Try
+
+        If errorFlag Then
+            Dim messageDialog = New Windows.UI.Popups.MessageDialog(App.Texts.GetString("UnableToEditCategory"))
+            Await messageDialog.ShowAsync()
+        End If
+
+    End Function
+
+    Private Async Function CopyCategoryImage(ByVal newCategoryName As String, ByVal categoryImageFile As Windows.Storage.StorageFile) As Task
+
+        If categoryImageFile IsNot Nothing Then
+            Dim images As Windows.Storage.StorageFolder
+            Try
+                images = Await rootFolder.GetFolderAsync("_folders")
+            Catch ex As Exception
+            End Try
+            If images Is Nothing Then
+                images = Await rootFolder.CreateFolderAsync("_folders")
+            End If
+
+            Await categoryImageFile.CopyAsync(images, newCategoryName + ".png", Windows.Storage.NameCollisionOption.ReplaceExisting)
+        End If
+
+    End Function
+
     Public Async Function CreateCategoryAsync(ByVal newCategoryName As String, ByVal categoryImageFile As Windows.Storage.StorageFile) As Task
 
         Dim errorFlag As Boolean
@@ -230,21 +345,7 @@ Public Class RecipeFolders
         Try
             Await rootFolder.CreateFolderAsync(newCategoryName)
 
-            If categoryImageFile IsNot Nothing Then
-                'Dim parentFolder = Await categoryImageFile.GetParentAsync()
-
-                'If parentFolder.Path <> rootFolder.Path + "\_folders" Or categoryImageFile.Name <> newCategoryName Then
-                Dim images As Windows.Storage.StorageFolder
-                Try
-                    images = Await rootFolder.GetFolderAsync("_folders")
-                Catch ex As Exception
-                End Try
-                If images Is Nothing Then
-                    images = Await rootFolder.CreateFolderAsync("_folders")
-                End If
-
-                Await categoryImageFile.CopyAsync(images, newCategoryName + ".png")
-            End If
+            Await CopyCategoryImage(newCategoryName, categoryImageFile)
 
             Await LoadAsync()
         Catch ex As Exception
@@ -252,7 +353,7 @@ Public Class RecipeFolders
         End Try
 
         If errorFlag Then
-            Dim messageDialog = New Windows.UI.Popups.MessageDialog("Die Kategorie konnte nicht angelegt werden.")
+            Dim messageDialog = New Windows.UI.Popups.MessageDialog(App.Texts.GetString("UnableToCreateCategory"))
             Await messageDialog.ShowAsync()
         End If
 

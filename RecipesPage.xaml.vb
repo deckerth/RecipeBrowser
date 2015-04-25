@@ -1,4 +1,8 @@
 ﻿Imports Windows.UI.Popups
+Imports Windows.Storage
+Imports Windows.Storage.Provider
+Imports Windows.Globalization.DateTimeFormatting
+Imports System.Globalization
 
 ' Die Elementvorlage "Geteilte Seite" ist unter http://go.microsoft.com/fwlink/?LinkId=234234 dokumentiert.
 
@@ -52,9 +56,10 @@ Public NotInheritable Class RecipesPage
         Dim selectedItem = DirectCast(list.SelectedItem, Recipe)
         If selectedItem IsNot Nothing Then
             Await selectedItem.LoadRecipeAsync()
-            RenderPageControl(selectedItem)
             RecipeViewer.Source = selectedItem.RenderedPage
         End If
+
+        EnableControls()
 
         If Me.UsingLogicalPageNavigation() Then
             Me.InvalidateVisualState()
@@ -83,13 +88,7 @@ Public NotInheritable Class RecipesPage
 
         Dim category = DirectCast(e.NavigationParameter, String)
 
-        RemoveFromFavorites.IsEnabled = False
-        AddToFavorites.IsEnabled = False
-        ShowFavorites.IsEnabled = False
-        RecipeSearchBox.IsEnabled = False
-        backButton.IsEnabled = False
-        changeSortOrder.IsEnabled = False
-        OpenFile.IsEnabled = False
+        DisableControls(False) ' do not show action progress
 
         pageControl.Visibility = Windows.UI.Xaml.Visibility.Collapsed
 
@@ -106,22 +105,15 @@ Public NotInheritable Class RecipesPage
             AddToFavorites.Visibility = Windows.UI.Xaml.Visibility.Collapsed
             ShowFavorites.Visibility = Windows.UI.Xaml.Visibility.Collapsed
             RecipeSearchBox.Visibility = Windows.UI.Xaml.Visibility.Collapsed
-            RemoveFromFavorites.IsEnabled = True
         Else
             RemoveFromFavorites.Visibility = Windows.UI.Xaml.Visibility.Collapsed
-            AddToFavorites.IsEnabled = True
-            ShowFavorites.IsEnabled = True
         End If
-
-        OpenFile.IsEnabled = True
-        backButton.IsEnabled = True
-        changeSortOrder.IsEnabled = True
 
         If category = SearchResults.FolderName Then
             RecipeSearchBox.QueryText = categories.SearchResultsFolder.LastSearchString
-        Else
-            RecipeSearchBox.IsEnabled = True
         End If
+
+        EnableControls()
 
         If CurrentRecipeFolder.Folder IsNot Nothing Then
             Dim searchSuggestions = New Windows.ApplicationModel.Search.LocalContentSuggestionSettings()
@@ -137,7 +129,6 @@ Public NotInheritable Class RecipesPage
                 Me.itemsViewSource.View.MoveCurrentToFirst()
             End If
         Else
-
             ' Den zuvor gespeicherten Zustand wiederherstellen, der dieser Seite zugeordnet ist
             If e.PageState.ContainsKey("SelectedItem") AndAlso Me.itemsViewSource.View IsNot Nothing Then
                 ' TODO: Me.itemsViewSource.View.MoveCurrentTo() mit dem ausgewählten
@@ -147,8 +138,8 @@ Public NotInheritable Class RecipesPage
                 Me.itemsViewSource.View.MoveCurrentTo(selectedItem)
                 If selectedItem IsNot Nothing Then
                     Await selectedItem.LoadRecipeAsync()
-                    RenderPageControl(selectedItem)
                     RecipeViewer.Source = selectedItem.RenderedPage
+                    EnableControls()
                 End If
 
             End If
@@ -319,28 +310,79 @@ Public NotInheritable Class RecipesPage
 
     End Sub
 
-    Private Sub DisableControls()
+    Private Sub DisableControls(Optional visualizeProgress As Boolean = True)
 
-        AddToFavorites.IsEnabled = False
         ShowFavorites.IsEnabled = False
         backButton.IsEnabled = False
-        actionProgress.IsActive = True
+        If visualizeProgress Then
+            actionProgress.IsActive = True
+        End If
         RecipeSearchBox.IsEnabled = False
         nextPage.IsEnabled = False
         prevPage.IsEnabled = False
+        refreshRecipes.IsEnabled = False
+        AddToFavorites.IsEnabled = False
+        RemoveFromFavorites.IsEnabled = False
+        OpenFile.IsEnabled = False
+        changeCategory.IsEnabled = False
+        deleteRecipe.IsEnabled = False
+        editNote.IsEnabled = False
+        logAsCooked.IsEnabled = False
 
     End Sub
 
-    Private Sub EnableControls(ByRef currentRecipe As Recipe)
+    Private Sub EnableControls()
 
-        AddToFavorites.IsEnabled = True
+        Dim currentRecipe As Recipe
+
+        If Me.itemsViewSource.View IsNot Nothing Then
+            Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+            If selectedItem IsNot Nothing Then
+                currentRecipe = DirectCast(selectedItem, Recipe)
+            End If
+        End If
+
         ShowFavorites.IsEnabled = True
         backButton.IsEnabled = True
         actionProgress.IsActive = False
+        refreshRecipes.IsEnabled = True
+
         If CurrentRecipeFolder.Name <> SearchResults.FolderName Then
             RecipeSearchBox.IsEnabled = True
         End If
-        RenderPageControl(currentRecipe)
+
+        RenderPageControl(currentRecipe) ' currentRecipe may be nothing
+
+        If currentRecipe Is Nothing Then
+            AddToFavorites.IsEnabled = False
+            RemoveFromFavorites.IsEnabled = False
+            OpenFile.IsEnabled = False
+            changeCategory.IsEnabled = False
+            deleteRecipe.IsEnabled = False
+            editNote.IsEnabled = False
+            logAsCooked.IsEnabled = False
+            editNote.Label = ""
+        Else
+            AddToFavorites.IsEnabled = True
+            RemoveFromFavorites.IsEnabled = True
+            OpenFile.IsEnabled = True
+            changeCategory.IsEnabled = True
+            deleteRecipe.IsEnabled = True
+            editNote.IsEnabled = True
+            logAsCooked.IsEnabled = Not currentRecipe.CookedToday()
+            If currentRecipe.Notes Is Nothing Then
+                editNote.Label = App.Texts.GetString("CreateNote")
+                editNote.SetValue(ForegroundProperty, New SolidColorBrush(Windows.UI.Colors.Black))
+            Else
+                editNote.Label = App.Texts.GetString("DisplayNote")
+                editNote.SetValue(ForegroundProperty, New SolidColorBrush(Windows.UI.Colors.Orange))
+            End If
+        End If
+
+        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+        If categories.Folders.Count > 7 Then
+            changeCategory.Visibility = Windows.UI.Xaml.Visibility.Collapsed
+        End If
     End Sub
 
     Private Async Sub AddToFavorites_Click(sender As Object, e As RoutedEventArgs) Handles AddToFavorites.Click
@@ -352,7 +394,7 @@ Public NotInheritable Class RecipesPage
                 Dim recipe = DirectCast(selectedItem, Recipe)
                 Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
                 Await categories.FavoriteFolder.AddRecipeAsync(recipe)
-                EnableControls(recipe)
+                EnableControls()
             End If
         End If
 
@@ -371,7 +413,7 @@ Public NotInheritable Class RecipesPage
                 Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
                 categories.FavoriteFolder.DeleteRecipe(recipe)
                 RecipeViewer.Source = Nothing
-                RenderPageControl(Nothing)
+                EnableControls()
             End If
         End If
 
@@ -394,7 +436,7 @@ Public NotInheritable Class RecipesPage
                 Dim recipe = DirectCast(selectedItem, Recipe)
                 DisableControls()
                 Await Windows.System.Launcher.LaunchFileAsync(recipe.File)
-                EnableControls(recipe)
+                EnableControls()
             End If
         End If
 
@@ -436,7 +478,7 @@ Public NotInheritable Class RecipesPage
                 DisableControls()
                 Dim recipe = DirectCast(selectedItem, Recipe)
                 Await categories.DeleteRecipeAsync(recipe)
-                EnableControls(Nothing)
+                EnableControls()
             End If
         End If
 
@@ -451,7 +493,7 @@ Public NotInheritable Class RecipesPage
                 DisableControls()
                 Await recipe.PreviousPage()
                 RecipeViewer.Source = recipe.RenderedPage
-                EnableControls(recipe)
+                EnableControls()
             End If
         End If
 
@@ -466,9 +508,143 @@ Public NotInheritable Class RecipesPage
                 DisableControls()
                 Await recipe.NextPage()
                 RecipeViewer.Source = recipe.RenderedPage
-                EnableControls(recipe)
+                EnableControls()
             End If
         End If
+    End Sub
+
+    Private Function GetElementRect(ByRef element As FrameworkElement) As Rect
+
+        Dim buttonTransform As GeneralTransform = element.TransformToVisual(Nothing)
+        Dim point As Point = buttonTransform.TransformPoint(New Point())
+        Return New Rect(point, New Size(element.ActualWidth, element.ActualHeight))
+
+    End Function
+
+    Private Async Sub ChangeCategory_Click(sender As Object, e As RoutedEventArgs) Handles changeCategory.Click
+
+        If Me.itemsViewSource.View IsNot Nothing Then
+            Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+            If selectedItem IsNot Nothing Then
+                Dim recipe = DirectCast(selectedItem, Recipe)
+                Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+
+                DisableControls()
+
+                Dim CategoryList = New Windows.UI.Popups.PopupMenu()
+                Dim otherDestinations As Integer
+                Dim destination As RecipeFolder
+
+                For Each item In categories.Folders
+                    If item.Name <> CurrentRecipeFolder.Name Then
+                        Dim command As New Windows.UI.Popups.UICommand()
+                        otherDestinations = otherDestinations + 1
+                        destination = item
+                        command.Id = item
+                        command.Label = item.Name
+                        CategoryList.Commands.Add(command)
+                    End If
+                Next
+
+                If otherDestinations > 0 Then
+                    Dim command = Await CategoryList.ShowForSelectionAsync(GetElementRect(DirectCast(sender, FrameworkElement)))
+                    If command IsNot Nothing Then
+                        destination = command.Id
+                    Else
+                        destination = Nothing
+                    End If
+                    If destination IsNot Nothing Then
+                        Await categories.ChangeCategoryAsync(selectedItem, destination)
+                    End If
+                End If
+
+                EnableControls()
+            End If
+        End If
+
+    End Sub
+
+
+    Private Async Sub RefreshRecipes_Click(sender As Object, e As RoutedEventArgs) Handles refreshRecipes.Click
+
+        DisableControls()
+        Await CurrentRecipeFolder.LoadAsync()
+        EnableControls()
+
+    End Sub
+
+    Private noteTextChanged As Boolean
+    Private recipeWithNote As Recipe
+
+    Private Sub noteEditor_TextChanged(sender As Object, e As RoutedEventArgs) Handles noteEditor.TextChanged
+        noteTextChanged = True
+    End Sub
+
+    Private Async Sub OpenNoteEditor_Click(sender As Object, e As RoutedEventArgs) Handles editNote.Click
+
+        recipeWithNote = Nothing
+        If Me.itemsViewSource.View IsNot Nothing Then
+            Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+            If selectedItem IsNot Nothing Then
+                DisableControls(False) ' no progress display
+                recipeWithNote = DirectCast(selectedItem, Recipe)
+
+                If recipeWithNote.Notes IsNot Nothing Then
+                    Try
+                        Dim randAccStream As Windows.Storage.Streams.IRandomAccessStream = Await recipeWithNote.Notes.OpenAsync(Windows.Storage.FileAccessMode.Read)
+                        noteEditor.Document.LoadFromStream(Windows.UI.Text.TextSetOptions.FormatRtf, randAccStream)
+                    Catch ex As Exception
+                    End Try
+                End If
+            End If
+        End If
+
+        noteTextChanged = False
+    End Sub
+
+    Private Async Function FlyoutClosed(sender As Object, e As Object) As Task
+
+        actionProgress.IsActive = True
+
+        If noteTextChanged Then
+            Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+            Await recipeWithNote.UpdateNoteTextAsync(noteEditor.Document)
+        End If
+
+        EnableControls()
+
+    End Function
+
+    Private Sub LogAsCooked_Click(sender As Object, e As RoutedEventArgs) Handles logAsCooked.Click
+
+        If Me.itemsViewSource.View IsNot Nothing Then
+            Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+            If selectedItem IsNot Nothing Then
+                DisableControls(False)
+                CookedOn.Date = Date.Now
+            End If
+        End If
+
+    End Sub
+
+    Private Async Function ConfirmCookedOn(sender As Object, e As RoutedEventArgs) As Task
+
+        CookedOnFlyout.Hide()
+        actionProgress.IsActive = True
+
+        If Me.itemsViewSource.View IsNot Nothing Then
+            Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+            If selectedItem IsNot Nothing Then
+                Dim current = DirectCast(selectedItem, Recipe)
+                Await current.LogRecipeCookedAsync(CookedOn.Date)
+            End If
+        End If
+
+        EnableControls()
+    End Function
+
+    Private Sub CookedOnFlyout_Closed(sender As Object, e As Object) Handles CookedOnFlyout.Closed
+        EnableControls()
     End Sub
 
 End Class
