@@ -186,6 +186,9 @@
   <data name="GetCategoryImage.Content" xml:space="preserve">
     <value>Kategoriebild laden</value>
   </data>
+  <data name="LastCookedDescending.Text" xml:space="preserve">
+    <value>Zuletzt zubereitet, absteigend</value>
+  </data>
   <data name="LogAsCooked.Label" xml:space="preserve">
     <value>Zubereitet!</value>
   </data>
@@ -209,6 +212,9 @@
   </data>
   <data name="OpenRootFolder" xml:space="preserve">
     <value>Startordner auswählen</value>
+  </data>
+  <data name="Recipe" xml:space="preserve">
+    <value>Rezept</value>
   </data>
   <data name="RefreshRecipes.Label" xml:space="preserve">
     <value>Anzeige aktualisieren</value>
@@ -248,6 +254,9 @@
   </data>
   <data name="UpToNow" xml:space="preserve">
     <value>bislang</value>
+  </data>
+  <data name="WhichDestinationCategory.Text" xml:space="preserve">
+    <value>In welche Kategorie soll das Rezept verschoben werden?</value>
   </data>
   <data name="Yes" xml:space="preserve">
     <value>Ja</value>

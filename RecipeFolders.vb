@@ -246,6 +246,20 @@ Public Class RecipeFolders
         End If
 
         Dim folder = GetFolder(recipe.Categegory)
+
+        Try
+            If recipe.Notes IsNot Nothing Then
+                Await recipe.Notes.DeleteAsync()
+            End If
+        Catch ex As Exception
+        End Try
+
+        Try
+            Dim metadata = Await folder.Folder.GetFileAsync(recipe.Name + ".xml")
+            Await metadata.DeleteAsync()
+        Catch ex As Exception
+        End Try
+
         folder.DeleteRecipe(recipe)
         If Not FavoriteFolder.ContentLoaded Then
             Await FavoriteFolder.LoadAsync()
@@ -263,24 +277,53 @@ Public Class RecipeFolders
         End If
 
         Dim errorFlag As Boolean
+        Dim srcFolder As RecipeFolder
+
         Try
             Await recipeToChange.File.MoveAsync(destinationCategory.Folder, recipeToChange.File.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName)
 
             If destinationCategory.ContentLoaded Then
                 destinationCategory.Invalidate()
             End If
-            Dim srcFolder = GetFolder(recipeToChange.Categegory)
+            srcFolder = GetFolder(recipeToChange.Categegory)
             If srcFolder.ContentLoaded Then
                 srcFolder.DeleteRecipe(recipeToChange)
             End If
-            recipeToChange.Categegory = destinationCategory.Name
+
         Catch ex As Exception
             errorFlag = True
         End Try
 
-        If errorFlag Then
+        If errorFlag Or srcFolder Is Nothing Then
             Dim messageDialog = New Windows.UI.Popups.MessageDialog(App.Texts.GetString("UnableToEditCategory"))
             Await messageDialog.ShowAsync()
+        Else
+            ' Move notes
+            Try
+                If recipeToChange.Notes IsNot Nothing Then
+                    Await recipeToChange.Notes.MoveAsync(destinationCategory.Folder, recipeToChange.Notes.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName)
+                End If
+            Catch ex As Exception
+                errorFlag = True
+            End Try
+
+            'Move metadata if they exist
+            Try
+                Dim item = Await srcFolder.Folder.TryGetItemAsync(recipeToChange.Name + ".xml")
+                If item IsNot Nothing Then
+                    Dim metadataFile As Windows.Storage.StorageFile = TryCast(item, Windows.Storage.StorageFile)
+                    If metadataFile IsNot Nothing Then
+                        Await metadataFile.MoveAsync(destinationCategory.Folder, metadataFile.Name, Windows.Storage.NameCollisionOption.GenerateUniqueName)
+                    End If
+                End If
+            Catch ex As Exception
+            End Try
+
+            FavoriteFolder.ChangeCategory(recipeToChange, destinationCategory.Name)
+            SearchResultsFolder.ChangeCategory(recipeToChange, destinationCategory.Name)
+
+            recipeToChange.Categegory = destinationCategory.Name
+            recipeToChange.RenderSubTitle()
         End If
 
     End Function

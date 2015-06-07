@@ -3,8 +3,42 @@
 
     Public Shared FolderName As String = App.Texts.GetString("FavoritesFolder")
 
+    Class RecipeDescriptor
+        Public Category As String
+        Public Name As String
+    End Class
+
+    Private FavoritesList As List(Of RecipeDescriptor)
+
     Public Sub New()
         Me.Name = FolderName
+    End Sub
+
+    Private Sub LoadFavorites()
+
+        If FavoritesList IsNot Nothing Then
+            Return
+        End If
+
+        Dim roamingSettings = Windows.Storage.ApplicationData.Current.RoamingSettings
+        Dim recipeList = roamingSettings.CreateContainer("Favorites", Windows.Storage.ApplicationDataCreateDisposition.Always)
+
+        FavoritesList = New List(Of RecipeDescriptor)
+
+        For Each item In recipeList.Values
+            Dim recipeComposite = item.Value
+
+            If recipeComposite("Folder").Equals(SearchResults.FolderName) Then
+                ' Delete this entry
+                recipeList.Values.Remove(item.Key)
+            Else
+                Dim newRecipe As New RecipeDescriptor
+                newRecipe.Category = recipeComposite("Folder")
+                newRecipe.Name = recipeComposite("Recipe")
+                FavoritesList.Add(newRecipe)
+            End If
+        Next
+
     End Sub
 
     Public Async Function AddRecipeAsync(ByVal newRecipe As Recipe) As Task
@@ -48,32 +82,41 @@
 
     Public Overrides Async Function LoadAsync() As Task
 
-        Dim roamingSettings = Windows.Storage.ApplicationData.Current.RoamingSettings
         Dim allFolders = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
 
-        Dim recipeList = roamingSettings.CreateContainer("Favorites", Windows.Storage.ApplicationDataCreateDisposition.Always)
+        If FavoritesList Is Nothing Then
+            LoadFavorites()
+        End If
 
         _RecipeList.Clear()
 
-        For Each item In recipeList.Values
-            Dim recipeComposite = item.Value
+        For Each item In FavoritesList
+            Dim newRecipe As New Recipe
 
-            If recipeComposite("Folder").Equals(SearchResults.FolderName) Then
-                ' Delete this entry
-                recipeList.Values.Remove(item.Key)
-            Else
-                Dim newRecipe As New Recipe
-
-                newRecipe = Await allFolders.GetRecipeAsync(recipeComposite("Folder"), recipeComposite("Recipe"))
-                If newRecipe IsNot Nothing Then
-                    _RecipeList.Add(newRecipe)
-                End If
+            newRecipe = Await allFolders.GetRecipeAsync(item.Category, item.Name)
+            If newRecipe IsNot Nothing Then
+                _RecipeList.Add(newRecipe)
             End If
         Next
 
         ApplySortOrder()
 
         _ContentLoaded = True
+    End Function
+
+    Public Function IsFavorite(recipeToLookup As Recipe) As Boolean
+
+        If ContentLoaded() Then
+            Return GetRecipe(recipeToLookup.Categegory, recipeToLookup.Name) IsNot Nothing
+        Else
+            If FavoritesList Is Nothing Then
+                LoadFavorites()
+            End If
+
+            Dim matches = FavoritesList.Where(Function(otherRecipe) otherRecipe.Name.Equals(recipeToLookup.Name) And otherRecipe.Category.Equals(recipeToLookup.Categegory))
+            Return matches.Count() = 1
+        End If
+
     End Function
 
     Public Sub RenameCategory(ByRef OldName As String, ByRef NewName As String)
@@ -100,5 +143,29 @@
 
     End Sub
 
+    Public Sub ChangeCategory(ByRef recipeToChange As Recipe, ByRef NewCategory As String)
+
+        Dim instanceInFavorites As Recipe = GetRecipe(recipeToChange.Categegory, recipeToChange.Name)
+        If instanceInFavorites Isnot Nothing andalso Not ReferenceEquals(instanceInFavorites, recipeToChange) Then
+            instanceInFavorites.Categegory = NewCategory
+            instanceInFavorites.RenderSubTitle()
+            instanceInFavorites.Notes = recipeToChange.Notes
+        End If
+
+        Dim roamingSettings = Windows.Storage.ApplicationData.Current.RoamingSettings
+        Dim storedRecords = roamingSettings.CreateContainer("Favorites", Windows.Storage.ApplicationDataCreateDisposition.Always)
+
+        For Each item In storedRecords.Values
+            If item.Value("Folder") = recipeToChange.Categegory And item.Value("Recipe") = recipeToChange.Name Then
+                Dim recipeComposite = New Windows.Storage.ApplicationDataCompositeValue()
+                recipeComposite("Folder") = NewCategory
+                recipeComposite("Recipe") = recipeToChange.Name
+                storedRecords.Values.Remove(item.Key)
+                storedRecords.Values(item.Key) = recipeComposite
+                Return
+            End If
+        Next
+
+    End Sub
 
 End Class

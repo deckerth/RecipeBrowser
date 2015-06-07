@@ -1,6 +1,8 @@
 ﻿Imports Windows.Storage
 Imports Windows.Storage.Provider
 Imports Windows.Globalization.DateTimeFormatting
+Imports System.Globalization
+Imports System.Text
 
 Public Class Recipe
     Implements INotifyPropertyChanged
@@ -299,6 +301,67 @@ Public Class RecipeComparer_DateDescending
             Else
                 ' ...and y is not Nothing, compare the string
                 Return -1 * x.CreationDateTime.CompareTo(y.CreationDateTime)
+            End If
+        End If
+    End Function
+End Class
+
+
+Public Class RecipeComparer_LastCookedDescending
+    Implements IComparer(Of Recipe)
+
+    Private Function ConvertToDate(ByRef datestr As String) As DateTime
+
+        Try
+            ' Create two different encodings.
+            Dim ascii As Encoding = Encoding.GetEncoding("US-ASCII")
+            Dim unicode As Encoding = Encoding.Unicode
+
+            ' Convert the string into a byte array.
+            Dim unicodeBytes As Byte() = unicode.GetBytes(datestr)
+
+            ' Perform the conversion from one encoding to the other.
+            Dim asciiBytes As Byte() = Encoding.Convert(unicode, ascii, unicodeBytes)
+
+            ' Convert the new byte array into a char array and then into a string.
+            Dim asciiChars(ascii.GetCharCount(asciiBytes, 0, asciiBytes.Length) - 1) As Char
+            ascii.GetChars(asciiBytes, 0, asciiBytes.Length, asciiChars, 0)
+            Dim asciiString As New String(asciiChars)
+
+            Return DateTime.Parse(asciiString.Replace("?", ""))
+        Catch ex As Exception
+            Return Nothing
+        End Try
+
+    End Function
+
+    Public Function Compare(ByVal x As Recipe, ByVal y As Recipe) As Integer Implements IComparer(Of Recipe).Compare
+
+        If x Is Nothing OrElse x.LastCooked Is Nothing Then
+            If y Is Nothing OrElse y.LastCooked Is Nothing Then
+                ' If x is Nothing and y is Nothing, they're
+                ' equal. 
+                Return 0
+            Else
+                ' If x is Nothing and y is not Nothing, y
+                ' is smaller. 
+                Return 1
+            End If
+        Else
+            ' If x is not Nothing...
+            '
+            If y Is Nothing OrElse y.LastCooked Is Nothing Then
+                ' ...and y is Nothing, x is smaller.
+                Return -1
+            Else
+                ' ...and y is not Nothing, compare the dates
+                Dim xDate As DateTime
+                Dim yDate As DateTime
+
+                xDate = ConvertToDate(x.LastCooked)
+                yDate = ConvertToDate(y.LastCooked)
+                Return -1 * xDate.CompareTo(yDate)
+
             End If
         End If
     End Function

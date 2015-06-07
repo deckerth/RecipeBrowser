@@ -10,6 +10,7 @@ Public Class RecipeFolder
     Public Enum SortOrder
         ByNameAscending
         ByDateDescending
+        ByLastCookedDescending
     End Enum
 
     Protected _Recipes As New ObservableCollection(Of Recipe)()
@@ -47,10 +48,10 @@ Public Class RecipeFolder
                 Dim parent = Await file.GetParentAsync()
                 _recipe.Categegory = parent.Name
                 If checkForNotes Then
-                    _recipe.Notes = Await parent.GetFileAsync(_recipe.Name + ".rtf")
+                    _recipe.Notes = TryCast(Await parent.TryGetItemAsync(_recipe.Name + ".rtf"), Windows.Storage.StorageFile)
                 End If
                 If loadMetadata Then
-                    metaDataFile = Await parent.GetFileAsync(_recipe.Name + ".xml")
+                    metaDataFile = TryCast(Await parent.TryGetItemAsync(_recipe.Name + ".xml"), Windows.Storage.StorageFile)
                 End If
             Catch ex As Exception
                 App.Logger.Write("Unable to access parent of: " + file.Path + ": ", ex.ToString)
@@ -201,11 +202,14 @@ Public Class RecipeFolder
 
     Protected Sub ApplySortOrder()
         Dim _comparer As IComparer(Of Recipe)
-        If _SortOrder = SortOrder.ByNameAscending Then
-            _comparer = New RecipeComparer_NameAscending
-        Else
-            _comparer = New RecipeComparer_DateDescending
-        End If
+        Select Case _SortOrder
+            Case SortOrder.ByNameAscending
+                _comparer = New RecipeComparer_NameAscending
+            Case SortOrder.ByDateDescending
+                _comparer = New RecipeComparer_DateDescending
+            Case Else
+                _comparer = New RecipeComparer_LastCookedDescending
+        End Select
         _RecipeList.Sort(_comparer)
 
         _Recipes.Clear()

@@ -3,6 +3,7 @@ Imports Windows.Storage
 Imports Windows.Storage.Provider
 Imports Windows.Globalization.DateTimeFormatting
 Imports System.Globalization
+Imports Windows.ApplicationModel.DataTransfer
 
 ' Die Elementvorlage "Geteilte Seite" ist unter http://go.microsoft.com/fwlink/?LinkId=234234 dokumentiert.
 
@@ -42,6 +43,10 @@ Public NotInheritable Class RecipesPage
         AddHandler Me.itemListView.SelectionChanged, AddressOf ItemListView_SelectionChanged
         Me.NavigationHelper.GoBackCommand = New Common.RelayCommand(AddressOf Me.GoBack, AddressOf Me.CanGoBack)
 
+        Dim manager = DataTransferManager.GetForCurrentView()
+        AddHandler manager.DataRequested, AddressOf DataRequestedManager
+
+
         AddHandler Window.Current.SizeChanged, AddressOf Winow_SizeChanged
         Me.InvalidateVisualState()
     End Sub
@@ -80,10 +85,12 @@ Public NotInheritable Class RecipesPage
     ''' 
 
     Private CurrentRecipeFolder As RecipeFolder
+    Public Property OtherCategoryList As New ObservableCollection(Of RecipeFolder)
 
     Private Async Sub NavigationHelper_LoadState(sender As Object, e As Common.LoadStateEventArgs)
         ' TODO: Me.DefaultViewModel("Group") eine bindbare Gruppe zuweisen
-        ' TODO: Me.DefaultViewModel("Items") eine Auflistung von bindbaren Elementen zuweisen
+        ' TODO: Me.DefaultViewModel("Items") eine Auflistung von bindbaren Elementen zuweisen        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+
         Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
 
         Dim category = DirectCast(e.NavigationParameter, String)
@@ -98,6 +105,7 @@ Public NotInheritable Class RecipesPage
 
         Me.DefaultViewModel("Group") = CurrentRecipeFolder
         Me.DefaultViewModel("Items") = CurrentRecipeFolder.Recipes
+
         pageTitle.Text = category
 
         If category = Favorites.FolderName Then
@@ -294,19 +302,38 @@ Public NotInheritable Class RecipesPage
 
 #End Region
 
-    Private Sub SortNameAscending_Click(sender As Object, e As RoutedEventArgs)
+    Private Sub SetSortOrder(ByRef sortOrder As RecipeFolder.SortOrder)
 
-        CurrentRecipeFolder.SetSortOrder(RecipeFolder.SortOrder.ByNameAscending)
+        Dim selectedItem As Object
+
+        If Me.itemsViewSource.View IsNot Nothing Then
+            selectedItem = Me.itemsViewSource.View.CurrentItem
+        End If
+
+        CurrentRecipeFolder.SetSortOrder(sortOrder)
         Me.DefaultViewModel("Group") = CurrentRecipeFolder
         Me.DefaultViewModel("Items") = CurrentRecipeFolder.Recipes
+
+        If selectedItem IsNot Nothing Then
+            Me.itemsViewSource.View.MoveCurrentTo(selectedItem)
+        End If
+    End Sub
+
+    Private Sub SortNameAscending_Click(sender As Object, e As RoutedEventArgs)
+
+        SetSortOrder(RecipeFolder.SortOrder.ByNameAscending)
 
     End Sub
 
     Private Sub SortDateDecending_Click(sender As Object, e As RoutedEventArgs)
 
-        CurrentRecipeFolder.SetSortOrder(RecipeFolder.SortOrder.ByDateDescending)
-        Me.DefaultViewModel("Group") = CurrentRecipeFolder
-        Me.DefaultViewModel("Items") = CurrentRecipeFolder.Recipes
+        SetSortOrder(RecipeFolder.SortOrder.ByDateDescending)
+
+    End Sub
+
+    Private Sub SortLastCookedDescending_Click(sender As Object, e As RoutedEventArgs)
+
+        SetSortOrder(RecipeFolder.SortOrder.ByLastCookedDescending)
 
     End Sub
 
@@ -334,6 +361,7 @@ Public NotInheritable Class RecipesPage
     Private Sub EnableControls()
 
         Dim currentRecipe As Recipe
+        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
 
         If Me.itemsViewSource.View IsNot Nothing Then
             Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
@@ -365,6 +393,13 @@ Public NotInheritable Class RecipesPage
         Else
             AddToFavorites.IsEnabled = True
             RemoveFromFavorites.IsEnabled = True
+            If CurrentRecipeFolder.Name = Favorites.FolderName OrElse categories.FavoriteFolder.IsFavorite(currentRecipe) Then
+                RemoveFromFavorites.Visibility = Windows.UI.Xaml.Visibility.Visible
+                AddToFavorites.Visibility = Windows.UI.Xaml.Visibility.Collapsed
+            Else
+                RemoveFromFavorites.Visibility = Windows.UI.Xaml.Visibility.Collapsed
+                AddToFavorites.Visibility = Windows.UI.Xaml.Visibility.Visible
+            End If
             OpenFile.IsEnabled = True
             changeCategory.IsEnabled = True
             deleteRecipe.IsEnabled = True
@@ -379,10 +414,6 @@ Public NotInheritable Class RecipesPage
             End If
         End If
 
-        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
-        If categories.Folders.Count > 7 Then
-            changeCategory.Visibility = Windows.UI.Xaml.Visibility.Collapsed
-        End If
     End Sub
 
     Private Async Sub AddToFavorites_Click(sender As Object, e As RoutedEventArgs) Handles AddToFavorites.Click
@@ -405,14 +436,20 @@ Public NotInheritable Class RecipesPage
         Me.Frame.Navigate(GetType(RecipesPage), Favorites.FolderName)
     End Sub
 
-    Private Sub RemoveFromFavorites_Click(sender As Object, e As RoutedEventArgs) Handles RemoveFromFavorites.Click
+    Private Async Sub RemoveFromFavorites_Click(sender As Object, e As RoutedEventArgs) Handles RemoveFromFavorites.Click
         If Me.itemsViewSource.View IsNot Nothing Then
             Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
             If selectedItem IsNot Nothing Then
                 Dim recipe = DirectCast(selectedItem, Recipe)
                 Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+                If Not categories.FavoriteFolder.ContentLoaded Then
+                    DisableControls(True)
+                    Await categories.FavoriteFolder.LoadAsync()
+                End If
                 categories.FavoriteFolder.DeleteRecipe(recipe)
-                RecipeViewer.Source = Nothing
+                If CurrentRecipeFolder.Name = Favorites.FolderName Then
+                    RecipeViewer.Source = Nothing
+                End If
                 EnableControls()
             End If
         End If
@@ -521,49 +558,6 @@ Public NotInheritable Class RecipesPage
 
     End Function
 
-    Private Async Sub ChangeCategory_Click(sender As Object, e As RoutedEventArgs) Handles changeCategory.Click
-
-        If Me.itemsViewSource.View IsNot Nothing Then
-            Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
-            If selectedItem IsNot Nothing Then
-                Dim recipe = DirectCast(selectedItem, Recipe)
-                Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
-
-                DisableControls()
-
-                Dim CategoryList = New Windows.UI.Popups.PopupMenu()
-                Dim otherDestinations As Integer
-                Dim destination As RecipeFolder
-
-                For Each item In categories.Folders
-                    If item.Name <> CurrentRecipeFolder.Name Then
-                        Dim command As New Windows.UI.Popups.UICommand()
-                        otherDestinations = otherDestinations + 1
-                        destination = item
-                        command.Id = item
-                        command.Label = item.Name
-                        CategoryList.Commands.Add(command)
-                    End If
-                Next
-
-                If otherDestinations > 0 Then
-                    Dim command = Await CategoryList.ShowForSelectionAsync(GetElementRect(DirectCast(sender, FrameworkElement)))
-                    If command IsNot Nothing Then
-                        destination = command.Id
-                    Else
-                        destination = Nothing
-                    End If
-                    If destination IsNot Nothing Then
-                        Await categories.ChangeCategoryAsync(selectedItem, destination)
-                    End If
-                End If
-
-                EnableControls()
-            End If
-        End If
-
-    End Sub
-
 
     Private Async Sub RefreshRecipes_Click(sender As Object, e As RoutedEventArgs) Handles refreshRecipes.Click
 
@@ -647,4 +641,73 @@ Public NotInheritable Class RecipesPage
         EnableControls()
     End Sub
 
+    Private Sub CategoryChooserFlyout_Closed(sender As Object, e As Object) Handles CategoryChooserFlyout.Closed
+        EnableControls()
+    End Sub
+
+    Private Async Sub OtherCategoryChoosen(sender As Object, e As SelectionChangedEventArgs) Handles OtherCategories.SelectionChanged
+
+        CategoryChooserFlyout.Hide()
+        actionProgress.IsActive = True
+
+        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+        Dim currentRecipe As Object = Me.itemsViewSource.View.CurrentItem
+        Dim list = DirectCast(sender, Selector)
+        Dim selectedItem = DirectCast(list.SelectedItem, RecipeFolder)
+        If selectedItem IsNot Nothing Then
+            Await categories.ChangeCategoryAsync(currentRecipe, selectedItem)
+        End If
+
+        EnableControls()
+
+    End Sub
+
+    Private Sub DataRequestedManager(sender As DataTransferManager, args As DataRequestedEventArgs)
+
+        ' Share a recipe
+
+        If Me.itemsViewSource.View Is Nothing Then
+            Return
+        End If
+
+        Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+        If selectedItem Is Nothing Then
+            Return
+        End If
+
+        Dim current = DirectCast(selectedItem, Recipe)
+        Dim request = args.Request
+        Dim storageItems As New List(Of IStorageItem)
+
+        storageItems.Add(current.File)
+
+        request.Data.Properties.Title = App.Texts.GetString("Recipe")
+        request.Data.Properties.Description = current.Name
+        request.Data.SetStorageItems(storageItems)
+
+    End Sub
+
+    Private Sub changeCategory_Click(sender As Object, e As RoutedEventArgs) Handles changeCategory.Click
+        Dim categories = DirectCast(App.Current.Resources("recipeFolders"), RecipeFolders)
+
+        If Me.itemsViewSource.View Is Nothing Then
+            Return
+        End If
+
+        Dim selectedItem As Object = Me.itemsViewSource.View.CurrentItem
+        If selectedItem Is Nothing Then
+            Return
+        End If
+
+        Dim current = DirectCast(selectedItem, Recipe)
+
+        OtherCategoryList.Clear()
+        For Each folder In categories.Folders
+            If folder.Name <> current.Categegory Then
+                OtherCategoryList.Add(folder)
+            End If
+        Next
+        OtherCategories.ItemsSource = OtherCategoryList
+
+    End Sub
 End Class
